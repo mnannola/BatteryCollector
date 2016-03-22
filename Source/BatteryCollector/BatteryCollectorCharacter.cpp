@@ -3,6 +3,7 @@
 #include "BatteryCollector.h"
 #include "BatteryCollectorCharacter.h"
 #include "Pickup.h"
+#include "BatteryPickup.h"
 
 //////////////////////////////////////////////////////////////////////////
 // ABatteryCollectorCharacter
@@ -49,6 +50,10 @@ ABatteryCollectorCharacter::ABatteryCollectorCharacter()
 	// Set initial power level of our character
 	InitialPower = 2000.0f;
 	CharacterPower = InitialPower;
+
+	// Set the dependence of the speed on the power level
+	SpeedFactor = 0.75f;
+	BaseSpeed = 10.0f;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -141,20 +146,37 @@ void ABatteryCollectorCharacter::CollectPickups()
 {
 	// Get all overlapping actors and store them in an array
 	TArray<AActor*> CollectedActors;
+	float CollectedPower = 0;
 	CollectionSphere->GetOverlappingActors(CollectedActors);
 	// For each actor we collected
 	for (int32 iCollected = 0; iCollected < CollectedActors.Num(); ++iCollected)
 	{
 		// Cast the actor to APickup
 		APickup* const TestPickup = Cast<APickup>(CollectedActors[iCollected]);
+
+		
 		// If the cast is successful and the Pickup is valid and active
 		if (TestPickup && !TestPickup->IsPendingKill() && TestPickup->IsActive())
 		{
 			// Call the Pickup's WasCollected function
 			TestPickup->WasCollected();
+
+			// Check if pickup is Battery type
+			ABatteryPickup* const TestBatteryPickup = Cast<ABatteryPickup>(TestPickup);
+			if (TestBatteryPickup)
+			{
+				// Add battery power to character
+				CollectedPower += TestBatteryPickup->GetPower();
+			}
+			
 			// Deactivate the pickup
 			TestPickup->SetActive(false);
 		}
+	}
+
+	if (CollectedPower > 0)
+	{
+		UpdatePower(CollectedPower);
 	}
 }
 
@@ -170,7 +192,15 @@ float ABatteryCollectorCharacter::GetCurrentPower()
 	return CharacterPower;
 }
 
+// Called whenever power is increased or decreased
 void ABatteryCollectorCharacter::UpdatePower(float PowerCharge)
-{
+{	
+	// change power
 	CharacterPower = CharacterPower + PowerCharge;
+
+	// change speed based on power
+	GetCharacterMovement()->MaxWalkSpeed = BaseSpeed + SpeedFactor * CharacterPower;
+
+	// call visual effect
+	PowerChangeEffect();
 }
